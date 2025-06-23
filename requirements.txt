@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+nltk
+joblib
+bcrypt
+streamlit-authenticator
+python-pptx==0.6.22
