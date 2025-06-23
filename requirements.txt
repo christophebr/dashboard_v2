@@ -79,3 +79,4 @@ nltk==3.9.1
 python-pptx==1.0.2
 markdown-it-py==3.0.0
 markdown
+bs4
