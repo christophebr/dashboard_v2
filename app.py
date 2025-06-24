@@ -15,12 +15,11 @@ import io
 import tempfile
 import pandas as pd
 
-import streamlit as st
 #from selenium import webdriver
 #from selenium.webdriver.chrome.service import Service
 #from webdriver_manager.chrome import ChromeDriverManager
 
-
+# Configuration de la page - DOIT être la première commande Streamlit
 st.set_page_config(
     page_title=":bar_chart: Dashboard support",
     layout="wide",
@@ -134,11 +133,11 @@ elif authentification_status:
             if cache_key not in st.session_state:
                 if dataframe_option == "support_stellair":
                     df_stellair = def_df_support(df_aircall_processed, df_aircall_processed, line_tous, agents_all)
-                    df_stellair = df_stellair[(df_stellair['line'] == 'armatistechnique') | (df_stellair['IVR Branch'] == 'Stellair')]
+                    df_stellair = df_stellair[(df_stellair['line'] == 'armatistechnique') | (df_stellair['Logiciel'] == 'Stellair')]
                     st.session_state[cache_key] = df_stellair
                 elif dataframe_option == "support_affid":
                     df_affid = def_df_support(df_aircall_processed, df_aircall_processed, line_tous, agents_support)
-                    df_affid = df_affid[df_affid['IVR Branch'] == 'Affid']
+                    df_affid = df_affid[df_affid['Logiciel'] == 'Affid']
                     st.session_state[cache_key] = df_affid
                 elif dataframe_option == "xmed":
                     df_xmed = def_df_support(df_aircall_processed, df_aircall_processed, line_tous, agents_all)
@@ -230,14 +229,8 @@ elif authentification_status:
                 if dataframe_option == "support_affid":
                     st.info("Les graphiques ci-dessous montrent la répartition des appels entre les branches IVR 'Affid' et 'Stellair'.")
                     
-                    fig_charge_pourcentage, fig_charge_volume, _ = graph_charge_affid_stellair(
-                        filtrer_par_periode(
-                            st.session_state['df_support_processed'],
-                            periode
-                        )
-                    )
-                    st.plotly_chart(fig_charge_pourcentage, use_container_width=True)
-                    st.plotly_chart(fig_charge_volume, use_container_width=True)
+                    st.plotly_chart(graph_activite(df_support), use_container_width=True)
+
                 else:
                     # Graphiques pour Armatis
                     st.plotly_chart(graph_activite(df_support), use_container_width=True)
@@ -316,33 +309,132 @@ elif authentification_status:
 
             # --- RAPPORT POWERPOINT STELLAIR ---
             if st.sidebar.button("Générer rapport PowerPoint Stellair"):
+                from pptx import Presentation
+                from pptx.util import Inches, Pt
+                from pptx.enum.text import PP_ALIGN
+                import io
+                
                 # Préparation des données 6 mois
-                df_support_stellair_6m = def_df_support(process_aircall_data(df_aircall), process_aircall_data(df_aircall), line_tous, agents_all)
-                df_support_stellair_6m = df_support_stellair_6m[(df_support_stellair_6m['line'] == 'armatistechnique') | (df_support_stellair_6m['IVR Branch'] == 'Stellair')]
+                df_support_stellair_6m = def_df_support(df_aircall_processed, df_aircall_processed, line_tous, agents_all)
+                df_support_stellair_6m = df_support_stellair_6m[(df_support_stellair_6m['line'] == 'armatistechnique') | (df_support_stellair_6m['Logiciel'] == 'Stellair')]
                 df_support_stellair_6m = filtrer_par_periode(df_support_stellair_6m, "6 derniers mois")
                 df_tickets_6m = filtrer_par_periode(df_tickets_processed, "6 derniers mois")
                 kpis_6m = generate_kpis(df_support_stellair_6m, df_tickets_6m, agents_all)
-                moyenne_temps_reponse_6m, graph_temps_reponse_6m = calculate_ticket_response_time(df_tickets_6m, agents_all)
-                kpis_6m['moyenne_temps_reponse'] = moyenne_temps_reponse_6m
-                graph_activite_6m = graph_activite(df_support_stellair_6m)
-                evo_appels_tickets_6m, _, _, _ = evo_appels_ticket(df_tickets_6m, df_support_stellair_6m)
+                moyenne_temps_reponse_6m, graph_temps_reponse_6m, _ = calculate_ticket_response_time(df_tickets_6m, agents_all)
 
                 # Préparation des données 3 mois
-                df_support_stellair_3m = def_df_support(process_aircall_data(df_aircall), process_aircall_data(df_aircall), line_tous, agents_all)
-                df_support_stellair_3m = df_support_stellair_3m[(df_support_stellair_3m['line'] == 'armatistechnique') | (df_support_stellair_3m['IVR Branch'] == 'Stellair')]
+                df_support_stellair_3m = def_df_support(df_aircall_processed, df_aircall_processed, line_tous, agents_all)
+                df_support_stellair_3m = df_support_stellair_3m[(df_support_stellair_3m['line'] == 'armatistechnique') | (df_support_stellair_3m['Logiciel'] == 'Stellair')]
                 df_support_stellair_3m = filtrer_par_periode(df_support_stellair_3m, "3 derniers mois")
                 df_tickets_3m = filtrer_par_periode(df_tickets_processed, "3 derniers mois")
                 kpis_3m = generate_kpis(df_support_stellair_3m, df_tickets_3m, agents_all)
-                moyenne_temps_reponse_3m, _ = calculate_ticket_response_time(df_tickets_3m, agents_all)
-                kpis_3m['moyenne_temps_reponse'] = moyenne_temps_reponse_3m
-
-                # Génération du rapport
-                pptx_io = create_powerpoint_stellair_report(
-                    df_support_stellair_6m, df_tickets_6m, kpis_6m,
-                    df_support_stellair_3m, df_tickets_3m, kpis_3m,
-                    graph_activite_6m, graph_temps_reponse_6m, evo_appels_tickets_6m
-                )
-                st.sidebar.success("Rapport PowerPoint généré !")
+                moyenne_temps_reponse_3m, _, _ = calculate_ticket_response_time(df_tickets_3m, agents_all)
+                
+                # Graphiques
+                graph_activite_6m = graph_activite(df_support_stellair_6m)
+                evo_appels_tickets_6m, _, _, _ = evo_appels_ticket(df_tickets_6m, df_support_stellair_6m)
+                
+                # Graphiques tickets N1 et N2
+                from data_processing.kpi_generation import graph_tickets_n1_par_semaine, graph_tickets_n2_par_semaine
+                graph_tickets_n1_6m = graph_tickets_n1_par_semaine(df_tickets_6m)
+                graph_tickets_n2_6m = graph_tickets_n2_par_semaine(df_tickets_6m)
+                
+                # Création de la présentation PowerPoint
+                prs = Presentation()
+                
+                # Slide 1 - Titre
+                slide_layout = prs.slide_layouts[0]
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Rapport Stellair"
+                slide.placeholders[1].text = "Rapport généré automatiquement"
+                
+                # Slide 2 - KPIs 6 mois
+                slide_layout = prs.slide_layouts[1]  # Titre et contenu
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "KPIs - 6 derniers mois"
+                
+                # Ajouter les KPIs sous forme de vignettes
+                kpi_text = f"""
+                • Taux de service : {kpis_6m['Taux_de_service']}%
+                • Appels entrants/jour : {kpis_6m['Entrant']}
+                • Numéros uniques/jour : {kpis_6m['Numero_unique']}
+                • Entrants vs tickets : {round(kpis_6m['activite_appels_pourcentage'] * 100, 2)}% / {round(kpis_6m['activite_tickets_pourcentage'] * 100, 2)}%
+                • Temps de réponse moyen : {int(moyenne_temps_reponse_6m)}:{int((moyenne_temps_reponse_6m % 1) * 60):02d}
+                """
+                
+                body_shape = slide.placeholders[1]
+                tf = body_shape.text_frame
+                tf.text = kpi_text
+                
+                # Slide 3 - KPIs 3 mois
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "KPIs - 3 derniers mois"
+                
+                kpi_text_3m = f"""
+                • Taux de service : {kpis_3m['Taux_de_service']}%
+                • Appels entrants/jour : {kpis_3m['Entrant']}
+                • Numéros uniques/jour : {kpis_3m['Numero_unique']}
+                • Entrants vs tickets : {round(kpis_3m['activite_appels_pourcentage'] * 100, 2)}% / {round(kpis_3m['activite_tickets_pourcentage'] * 100, 2)}%
+                • Temps de réponse moyen : {int(moyenne_temps_reponse_3m)}:{int((moyenne_temps_reponse_3m % 1) * 60):02d}
+                """
+                
+                body_shape = slide.placeholders[1]
+                tf = body_shape.text_frame
+                tf.text = kpi_text_3m
+                
+                # Slide 4 - Graphique activité Stellair
+                slide_layout = prs.slide_layouts[5]  # Titre et contenu
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Activité Stellair"
+                
+                # Sauvegarder le graphique temporairement
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    graph_activite_6m.write_image(tmp.name, width=800, height=600)
+                    slide.shapes.add_picture(tmp.name, Inches(1), Inches(1.5), width=Inches(8), height=Inches(6))
+                
+                # Slide 5 - Évolution hebdomadaire appels + tickets
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Évolution hebdomadaire : Appels entrants + Tickets"
+                
+                # Sauvegarder le graphique temporairement
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    evo_appels_tickets_6m.write_image(tmp.name, width=800, height=600)
+                    slide.shapes.add_picture(tmp.name, Inches(1), Inches(1.5), width=Inches(8), height=Inches(6))
+                
+                # Slide 6 - Évolution des temps de réponse
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Évolution des temps de réponse"
+                
+                # Sauvegarder le graphique temporairement avec les dimensions spécifiées
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    graph_temps_reponse_6m.write_image(tmp.name, width=800, height=600)
+                    # Centrer le graphique (20cm = 7.87 inches, 15cm = 5.91 inches)
+                    left = (10 - 7.87) / 2  # Centrer horizontalement
+                    top = (7.5 - 5.91) / 2 + 1.5  # Centrer verticalement avec marge pour le titre
+                    slide.shapes.add_picture(tmp.name, Inches(left), Inches(top), width=Inches(7.87), height=Inches(5.91))
+                
+                # Slide 7 - Tickets N1 par semaine
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Tickets N1 : Nouveaux tickets par semaine et tickets ouverts"
+                
+                # Sauvegarder le graphique temporairement
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    graph_tickets_n1_6m.write_image(tmp.name, width=800, height=600)
+                    slide.shapes.add_picture(tmp.name, Inches(1), Inches(1.5), width=Inches(8), height=Inches(6))
+                
+                # Slide 8 - Tickets N2 par semaine
+                slide = prs.slides.add_slide(slide_layout)
+                slide.shapes.title.text = "Tickets N2 : Passés par semaine et ouverts"
+                
+                # Sauvegarder le graphique temporairement
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    graph_tickets_n2_6m.write_image(tmp.name, width=800, height=600)
+                    slide.shapes.add_picture(tmp.name, Inches(1), Inches(1.5), width=Inches(8), height=Inches(6))
+                
+                pptx_io = io.BytesIO()
+                prs.save(pptx_io)
+                pptx_io.seek(0)
+                st.sidebar.success("Rapport PowerPoint Stellair généré !")
                 st.sidebar.download_button(
                     label="📥 Télécharger le rapport Stellair",
                     data=pptx_io,
