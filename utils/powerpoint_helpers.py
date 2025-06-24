@@ -13,7 +13,11 @@ from data_processing.kpi_generation import (
     df_compute_ticket_appels_metrics,
     filtrer_par_periode,
     graph_activite,
-    calculer_scores_equipe
+    calculer_scores_equipe,
+    graph_activite_xmed,
+    graph_charge_affid_stellair,
+    evo_appels_ticket,
+    calculate_ticket_response_time
 )
 import pandas as pd
 from PIL import Image
@@ -69,119 +73,46 @@ def seconds_to_time(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 def create_powerpoint(kpis, df_support, periode):
-    # Créer une nouvelle présentation
     prs = Presentation()
-    
     # Slide 1 - Titre
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
     title = slide.shapes.title
     subtitle = slide.placeholders[1]
     title.text = "Dashboard Support"
-    format_title(title)
     subtitle.text = f"Période : {periode}"
-    
-    # Slide 2 - KPIs principaux
-    slide_layout = prs.slide_layouts[5]  # Layout avec titre uniquement
-    slide = prs.slides.add_slide(slide_layout)
-    title = slide.shapes.title
-    title.text = "KPIs Principaux"
-    format_title(title)
-    
-    # Convertir le temps moyen en format hh:mm:ss
-    temps_moyen = seconds_to_time(float(kpis['temps_moy_appel']))
-    
-    # Positions des KPIs
-    kpi_positions = [
-        (1, 2, "Taux de service", f"{kpis['Taux_de_service']}%"),
-        (5, 2, "Appels entrants par jour", str(kpis['Entrant'])),
-        (1, 4, "Numéros uniques par jour", str(kpis['Numero_unique'])),
-        (5, 4, "Temps moyen par appel", temps_moyen)
-    ]
-    
-    # Ajouter les KPIs dans des rectangles
-    for left, top, label, value in kpi_positions:
-        shape = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(left),
-            Inches(top),
-            Inches(3.5),
-            Inches(1.5)
-        )
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = RGBColor(240, 240, 240)
-        
-        text_frame = shape.text_frame
-        p1 = text_frame.paragraphs[0]
-        p1.text = f"{label}\n{value}"
-        p1.font.size = Pt(14)
-        p1.font.color.rgb = RGBColor(0, 0, 0)  # Noir
-        p1.alignment = PP_ALIGN.CENTER
 
-    # Configuration commune pour les graphiques
-    chart_layout = {
-        'template': 'plotly_white',
-        'showlegend': True,
-        'legend': {
-            'orientation': 'h',
-            'yanchor': 'bottom',
-            'y': 1.02,
-            'xanchor': 'right',
-            'x': 1
-        },
-        'margin': {'l': 40, 'r': 40, 't': 60, 'b': 40},
-        'xaxis': {
-            'showgrid': True,
-            'gridwidth': 1,
-            'gridcolor': 'lightgray'
-        },
-        'yaxis': {
-            'showgrid': True,
-            'gridwidth': 1,
-            'gridcolor': 'lightgray',
-            'rangemode': 'tozero'
-        },
-        'width': 800,
-        'height': 450,
-        'font': {'size': 10}
-    }
-    
-    # Slide 3 - Graphique d'activité
-    img_slide_layout = prs.slide_layouts[5]
-    slide = prs.slides.add_slide(img_slide_layout)
-    title = slide.shapes.title
-    title.text = "Activité journalière"
-    format_title(title)
-    
-    # Générer et ajouter le graphique d'activité
-    fig_activite = graph_activite(df_support)
-    fig_activite.update_layout(chart_layout)
-    img_bytes = io.BytesIO()
-    fig_activite.write_image(img_bytes, format="png")
-    img_bytes.seek(0)
-    left = (prs.slide_width - Inches(8)) / 2
-    slide.shapes.add_picture(img_bytes, left, Inches(1.5), width=Inches(8))
-    
-    # Slides suivants - Autres graphiques
-    for fig in [kpis['charge_affid_stellair_%'], kpis['charge_affid_stellair_v'], kpis['evo_appels_tickets']]:
+    # Slide 2 - KPIs principaux (liste simple)
+    bullet_slide_layout = prs.slide_layouts[1]
+    slide = prs.slides.add_slide(bullet_slide_layout)
+    shapes = slide.shapes
+    title_shape = shapes.title
+    body_shape = shapes.placeholders[1]
+    title_shape.text = 'KPIs Principaux'
+    tf = body_shape.text_frame
+    tf.text = f"Taux de service : {kpis['Taux_de_service']}%"
+    p = tf.add_paragraph()
+    p.text = f"Appels entrants par jour : {kpis['Entrant']}"
+    p = tf.add_paragraph()
+    p.text = f"Numéros uniques par jour : {kpis['Numero_unique']}"
+    p = tf.add_paragraph()
+    p.text = f"Temps moyen par appel : {kpis['temps_moy_appel']}"
+
+    # Slide 3 - Graphique activité (optionnel, si fourni)
+    if 'fig_activite_ticket' in kpis:
         img_slide_layout = prs.slide_layouts[5]
         slide = prs.slides.add_slide(img_slide_layout)
         title = slide.shapes.title
-        format_title(title)
-        
-        # Mettre à jour et ajouter le graphique
-        fig.update_layout(chart_layout)
+        title.text = "Activité tickets"
         img_bytes = io.BytesIO()
-        fig.write_image(img_bytes, format="png")
+        kpis['fig_activite_ticket'].write_image(img_bytes, format="png")
         img_bytes.seek(0)
         left = (prs.slide_width - Inches(8)) / 2
         slide.shapes.add_picture(img_bytes, left, Inches(1.5), width=Inches(8))
-    
-    # Sauvegarder la présentation en mémoire
+
     pptx_io = io.BytesIO()
     prs.save(pptx_io)
     pptx_io.seek(0)
-    
     return pptx_io
 
 def create_powerpoint_agents(df_support, df_tickets, periode_selectbox, df_evaluation_filtre=None):
@@ -518,123 +449,48 @@ def create_powerpoint_agents(df_support, df_tickets, periode_selectbox, df_evalu
         print(f"Erreur lors de la génération de la présentation : {str(e)}")
         raise 
 
-def create_powerpoint_stellair_report(df_support_6m, df_tickets_6m, kpis_6m, df_support_3m, df_tickets_3m, kpis_3m, graph_activite_6m, graph_temps_reponse_6m, evo_appels_tickets_6m):
-    """
-    Génère un rapport PowerPoint Stellair avec :
-    - Slide 1 : KPI 6 mois
-    - Slide 2 : KPI 3 mois
-    - Slide 3 : Graphique activité 6 mois
-    - Slide 4 : Evolution temps de réponse aux tickets 6 mois
-    - Slide 5 : Evolution hebdo appels entrants + tickets 6 mois
-    """
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-    import io
-    
+def create_powerpoint_stellair_minimal(kpis, periode, fig_activite=None):
     prs = Presentation()
-    
-    # Slide 1 - KPIs 6 mois
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    # Slide 1 - Titre
+    title_slide_layout = prs.slide_layouts[0]
+    slide = prs.slides.add_slide(title_slide_layout)
     title = slide.shapes.title
-    title.text = "Support Stellair - 6 mois : KPIs principaux"
-    format_title(title)
-    kpi_labels = [
-        ("Taux de service", f"{kpis_6m['Taux_de_service']}%"),
-        ("Appels entrant / Jour", str(kpis_6m['Entrant'])),
-        ("Numéros uniques / Jour", str(kpis_6m['Numero_unique'])),
-        ("Entrants vs Tickets", f"{round(kpis_6m['activite_appels_pourcentage']*100,2)}% / {round(kpis_6m['activite_tickets_pourcentage']*100,2)}%"),
-        ("Temps de réponse moyen aux tickets (h:min)", f"{int(kpis_6m['moyenne_temps_reponse'])}:{int((kpis_6m['moyenne_temps_reponse']%1)*60):02d}")
-    ]
-    for i, (label, value) in enumerate(kpi_labels):
-        shape = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(0.5 + (i%3)*3.2),  # plus rapproché
-            Inches(1.2 + (i//3)*1.6), # plus haut sur la slide
-            Inches(3),                # moins large
-            Inches(1.1)               # moins haut
-        )
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = RGBColor(240, 240, 240)
-        text_frame = shape.text_frame
-        p1 = text_frame.paragraphs[0]
-        p1.text = f"{label}\n{value}"
-        p1.font.size = Pt(16)
-        p1.font.color.rgb = RGBColor(0, 0, 0)
-        p1.alignment = PP_ALIGN.CENTER
-    
-    # Slide 2 - KPIs 3 mois
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    title = slide.shapes.title
-    title.text = "Support Stellair - 3 mois : KPIs principaux"
-    format_title(title)
-    kpi_labels = [
-        ("Taux de service", f"{kpis_3m['Taux_de_service']}%"),
-        ("Appels entrant / Jour", str(kpis_3m['Entrant'])),
-        ("Numéros uniques / Jour", str(kpis_3m['Numero_unique'])),
-        ("Entrants vs Tickets", f"{round(kpis_3m['activite_appels_pourcentage']*100,2)}% / {round(kpis_3m['activite_tickets_pourcentage']*100,2)}%"),
-        ("Temps de réponse moyen aux tickets (h:min)", f"{int(kpis_3m['moyenne_temps_reponse'])}:{int((kpis_3m['moyenne_temps_reponse']%1)*60):02d}")
-    ]
-    for i, (label, value) in enumerate(kpi_labels):
-        shape = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(0.5 + (i%3)*3.2),
-            Inches(1.2 + (i//3)*1.6),
-            Inches(3),
-            Inches(1.1)
-        )
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = RGBColor(240, 240, 240)
-        text_frame = shape.text_frame
-        p1 = text_frame.paragraphs[0]
-        p1.text = f"{label}\n{value}"
-        p1.font.size = Pt(16)
-        p1.font.color.rgb = RGBColor(0, 0, 0)
-        p1.alignment = PP_ALIGN.CENTER
-    
-    # Slide 3 - Graphique activité 6 mois
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    title = slide.shapes.title
-    title.text = "Support Stellair - 6 mois : Activité"
-    format_title(title)
-    img_bytes = io.BytesIO()
-    graph_activite_6m.write_image(img_bytes, format="png")
-    img_bytes.seek(0)
-    left = (prs.slide_width - Inches(8)) / 2
-    slide.shapes.add_picture(img_bytes, left, Inches(1.5), width=Inches(8))
-    
-    # Slide 4 - Evolution temps de réponse aux tickets
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    title = slide.shapes.title
-    title.text = "Évolution du temps de réponse aux tickets (6 mois)"
-    format_title(title)
-    img_bytes = io.BytesIO()
-    # Mettre la légende en haut, horizontale et centrée
-    graph_temps_reponse_6m.update_layout(
-        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5)
-    )
-    # Exporter l'image avec la bonne taille
-    graph_temps_reponse_6m.write_image(img_bytes, format="png", width=9.06*96, height=5.51*96)  # 96 dpi
-    img_bytes.seek(0)
-    width = Inches(9.06)
-    height = Inches(5.51)
-    left = (prs.slide_width - width) / 2
-    slide.shapes.add_picture(img_bytes, left, Inches(1.2), width=width, height=height)
-    
-    # Slide 5 - Evolution hebdo appels entrants + tickets
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    title = slide.shapes.title
-    title.text = "Évolution hebdomadaire : Appels entrants + Tickets (6 mois)"
-    format_title(title)
-    img_bytes = io.BytesIO()
-    evo_appels_tickets_6m.write_image(img_bytes, format="png")
-    img_bytes.seek(0)
-    left = (prs.slide_width - Inches(8)) / 2
-    slide.shapes.add_picture(img_bytes, left, Inches(1.5), width=Inches(8))
-    
+    subtitle = slide.placeholders[1]
+    title.text = "Rapport Stellair"
+    subtitle.text = f"Période : {periode}"
+
+    # Slide 2 - KPIs principaux (liste simple)
+    bullet_slide_layout = prs.slide_layouts[1]
+    slide = prs.slides.add_slide(bullet_slide_layout)
+    shapes = slide.shapes
+    title_shape = shapes.title
+    body_shape = shapes.placeholders[1]
+    title_shape.text = 'KPIs Principaux'
+    tf = body_shape.text_frame
+    tf.text = f"Taux de service : {kpis.get('Taux_de_service', 'N/A')}%"
+    p = tf.add_paragraph()
+    p.text = f"Appels entrants par jour : {kpis.get('Entrant', 'N/A')}"
+    p = tf.add_paragraph()
+    p.text = f"Numéros uniques par jour : {kpis.get('Numero_unique', 'N/A')}"
+    p = tf.add_paragraph()
+    p.text = f"Temps moyen par appel : {kpis.get('temps_moy_appel', 'N/A')}"
+
+    # Slide 3 - Graphique activité (optionnel)
+    if fig_activite is not None:
+        img_slide_layout = prs.slide_layouts[5]
+        slide = prs.slides.add_slide(img_slide_layout)
+        title = slide.shapes.title
+        title.text = "Activité Stellair"
+        img_bytes = io.BytesIO()
+        fig_activite.write_image(img_bytes, format="png")
+        img_bytes.seek(0)
+        left = (prs.slide_width - Inches(8)) / 2
+        slide.shapes.add_picture(img_bytes, left, Inches(1.5), width=Inches(8))
+
     pptx_io = io.BytesIO()
     prs.save(pptx_io)
     pptx_io.seek(0)
-    return pptx_io 
+    return pptx_io
 
 def create_powerpoint_agents_report(df_scores_6m, df_scores_3m, fig_tel_6m, fig_ticket_6m, markdown_methodo):
     """
