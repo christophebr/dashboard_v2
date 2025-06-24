@@ -5,7 +5,7 @@ from data_processing.aircall_processing import process_aircall_data, def_df_supp
 from data_processing.hubspot_processing import process_hubspot_data, load_hubspot_data
 from data_processing.kpi_generation import generate_kpis, filtrer_par_periode, calculate_ticket_response_time, graph_activite, evo_appels_ticket
 from utils.streamlit_helpers import load_data
-from utils.powerpoint_helpers import create_powerpoint, create_powerpoint_agents, create_powerpoint_stellair_report, create_powerpoint_agents_report
+from utils.powerpoint_helpers import create_powerpoint, create_powerpoint_agents, create_powerpoint_agents_report
 import config
 from config import CREDENTIALS, AIRCALL_DATA_PATH_V1, AIRCALL_DATA_PATH_V2, HUBSPOT_TICKET_DATA_PATH, EVALUATION_DATA_PATH
 import streamlit_authenticator as stauth
