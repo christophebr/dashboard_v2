@@ -732,9 +732,9 @@ def graph_charge_affid_stellair(df_support):
 
     essai = df_support[df_support['Semaine'] == 'S2025-6']['IVR Branch'].value_counts()
 
-    affid = df_support[(df_support['LastState'] == True) & (df_support['Logiciel'] == 'Affid')] \
+    affid = df_support[(df_support['direction'] == 'inbound') & (df_support['Logiciel'] == 'Affid')] \
         .groupby(['Semaine']).agg({'Count': 'sum'}).rename(columns={'Count': 'Affid'}).reset_index()
-    stellair = df_support[(df_support['LastState'] == True) & (df_support['Logiciel'] == 'Stellair')] \
+    stellair = df_support[(df_support['direction'] == 'inbound') & (df_support['Logiciel'] == 'Stellair')] \
         .groupby(['Semaine']).agg({'Count': 'sum'}).rename(columns={'Count': 'Stellair'}).reset_index()
 
     df_resultats = pd.merge(stellair, affid, on='Semaine').reset_index()
@@ -1699,7 +1699,7 @@ def calculate_ticket_response_time(df_tickets, agents=None):
         # Créer le graphique
         fig = make_subplots(
             rows=2, cols=1,
-            subplot_titles=('Évolution du temps de réponse moyen par semaine', 'Nombre de tickets par semaine'),
+            #subplot_titles=('Évolution du temps de réponse moyen par semaine', 'Nombre de tickets par semaine'),
             vertical_spacing=0.15,
             row_heights=[0.7, 0.3]
         )
@@ -1742,6 +1742,13 @@ def calculate_ticket_response_time(df_tickets, agents=None):
             template="plotly_dark",
             height=700,
             showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
             xaxis2_title="Semaine",
             yaxis_title="Temps de réponse (heures)",
             yaxis2_title="Nombre de tickets"
@@ -2207,7 +2214,14 @@ def graph_tickets_n2_par_semaine(df_tickets):
         color='Pipeline',
         title="Tickets N2 passés par semaine (barres) et ouverts (ligne)",
         labels={'Ticket ID': 'Nombre de tickets'},
-        barmode='stack'
+        barmode='stack',
+        color_discrete_map={
+            'SSIA': '#1f77b4',  # bleu
+            'SSI': '#ff7f0e',   # orange
+            'SPSA': '#2ca02c',  # vert
+            'A10': '#d62728',   # rouge
+            'Affid NXT': '#9467bd'  # violet
+        }
     )
 
     # --- Données pour la courbe (stock de tickets ouverts via Temps de fermeture) ---
